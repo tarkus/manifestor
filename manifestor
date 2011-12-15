@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+#-*- coding: utf-8 -*-
+
+import os
+import optparse
+
+template = """CACHE MANIFEST
+# version %s
+
+CACHE:
+#images
+
+
+#internal HTML documents
+
+
+#style sheets
+
+
+#style sheet images
+
+
+#javascript files
+
+NETWORK:
+*
+"""
+
+def manifestor():
+
+
+def main():
+    usage = "usage: %prog [options] path1 [path2]"
+    version = "%prog 1.0"
+    description = "Generate cache.manifest for your web apps by specified paths and filetypes etc."
+    p = optparse.OptionParser(usage=usage, description=description, version=version)
+    p.add_option("-v", "--verbose", action="store_true", dest="verbose", default=True, help="verbose output [default]")
+    p.add_option("-q", "--quiet", action="store_false", dest="verbose", help="be quiet")
+    p.add_option("-t", "--filetype", help="search files by specified filetypes, use comma for multiple filetypes")
+    p.add_option("-p", "--pattern", help="search files using given pattern")
+    options, arguments = p.parse_args()
+    print options, arguments
+
+
+if __name__ == "__main__":
+    main()
