@@ -2,44 +2,108 @@
 #-*- coding: utf-8 -*-
 
 import os
-import optparse
+import sys
+import argparse
+import hashlib
+import getpass
+import re
+from time import sleep
 
 template = """CACHE MANIFEST
-# version %s
+# Version: %s
 
 CACHE:
-#images
-
-
-#internal HTML documents
-
-
-#style sheets
-
-
-#style sheet images
-
-
-#javascript files
+%s
 
 NETWORK:
-*
-"""
-
-def manifestor():
-
+/
+*"""
 
 def main():
-    usage = "usage: %prog [options] path1 [path2]"
-    version = "%prog 1.0"
-    description = "Generate cache.manifest for your web apps by specified paths and filetypes etc."
-    p = optparse.OptionParser(usage=usage, description=description, version=version)
-    p.add_option("-v", "--verbose", action="store_true", dest="verbose", default=True, help="verbose output [default]")
-    p.add_option("-q", "--quiet", action="store_false", dest="verbose", help="be quiet")
-    p.add_option("-t", "--filetype", help="search files by specified filetypes, use comma for multiple filetypes")
-    p.add_option("-p", "--pattern", help="search files using given pattern")
-    options, arguments = p.parse_args()
-    print options, arguments
+    parser = argparse.ArgumentParser(
+        #usage="Usage: %(prog) [args] DIRECTORY [DIRECTORY ...]", 
+        description="Generate cache.manifest in DIRECTORY(s) by specified filetype(s) and pattern.", 
+        epilog="This utility skip all hidden files and empty directories.This is deliberate.")
+    parser.add_argument("-p", "--prefix", help="add url prefix")
+    parser.add_argument("-e", "--pattern", help="search files using given pattern, put the pattern in quote.")
+    parser.add_argument("-t", "--filetype", help="search files by specified filetypes, use comma to separate filetypes")
+    parser.add_argument("-o", "--output", help="output to file")
+    parser.add_argument("-v", "--verbose", action="store_true", dest="verbose", default=True, help="verbose output [default]")
+    parser.add_argument("-q", "--quiet", action="store_false", dest="verbose", help="be quiet")
+    parser.add_argument("--version", action="version", version="%(prog)s 1.0")
+    parser.add_argument("dirs", metavar="DIRECTORY", nargs='*', help="directory to proceed", default=["."])
+    args = parser.parse_args()
+
+    dirs = []
+    files = []
+    pattern = None
+    patterns = []
+    last_modify = 0
+
+    for d in args.dirs:
+        path = os.path.abspath(d)
+        if not os.path.exists(path):
+            parser.error("%s does not exists" % path)
+            parser.print_help()
+        dirs.append(path)
+
+    if args.filetype is not None:
+        filetypes = args.filetype.split(",")
+        patterns.append("\.(%s)$" % ("|").join(filetypes))
+
+    if args.pattern is not None:
+        patterns.append("(%s)" % args.pattern)
+
+    if args.filetype is None and args.pattern is None:
+        sys.stderr.write("No given filetype or pattern, continue [Y/n]? ")
+        while True:
+            confirm = sys.stdin.readline()
+            if confirm.rstrip().lower() in ("n", "no"):
+                sys.exit()
+            else:
+                break
+    else:
+        pattern = re.compile("|".join(patterns))
+
+    for basedir in dirs:
+        for dirname, dirnames, filenames in os.walk(basedir):
+            for subdir in dirnames:
+                if subdir[0] == ".":
+                    dirnames.remove(".git")
+            for filename in filenames:
+                if filename[0] == ".":
+                    continue
+                if pattern is not None:
+                    if pattern.search(filename) is None:
+                        continue
+                file_path = os.path.join(dirname, filename)
+                try:
+                    mtime = os.path.getmtime(file_path)
+                    if mtime > last_modify:
+                        last_modify = mtime
+                except:
+                    continue
+
+                if args.prefix is not None:
+                    file_path = file_path[len(basedir):]
+                    line = args.prefix + file_path 
+                else:
+                    line = file_path 
+
+                files.append(line)
+
+    m = hashlib.md5()
+    m.update(str(last_modify))
+    cache_version = m.hexdigest()[:16] 
+    manifest = template % (cache_version, "\n".join(files))
+    if args.output is None:
+        print manifest
+    else:
+        try:
+            open(os.path.abspath(output), "w").write(manifest)
+        except:
+            sys.stderr.write("Fail to output to %s" % output)
+            sys.exit(-1)
 
 
 if __name__ == "__main__":
